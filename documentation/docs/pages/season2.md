@@ -151,6 +151,147 @@ advantages and disadvantages of each approach. Testing performance without havin
 ## Regional boundary conditions
 ## Bulk formulae
 ## Fortran 101 - control structure, where parameters are defined, some keywords e.g. private, intent, submodule, use module etc
+
+Contributing to MOM can be extra daunting if you're not used to programming in Fortran. These notes aim to introduce Fortran to
+someone who might already be familiar with Python. And thankfully, most of the Fortran features exercised in MOM6 have a Python
+equivalent. Here, we won't be looking at MOM6 code directly, because the code itself is quite long - even if the language
+features used aren't too complicated. Instead, we'll build a simple example program that uses some of the concepts that MOM6 is
+built with.
+
+### Programs and modules
+
+Most of the code in MOM6 is organised into "modules" which usually relate to a certain area of the ocean physics. For example,
+MOM_barotropic.F90 contains the barotropic solver code, and MOM_tracer.F90 contains the tracer advection code and so on.
+Modules contains code that can be reused in other modules or "programs". Modules cannot be directly compiled and run, and so
+modules' code must be "used" from a program. The skeleton of this arrangement can look like:
+
+```fortran
+module my_module ! my_module is the name of the module
+  implicit none
+end module my_module
+
+program my_program ! my_program is the name of the program
+  use my_module
+  implicit none
+end program my_program
+```
+
+The module and program's boundaries in the code are deliniated by `program/module` and `end program/module` couples. The
+program/module's name must follow the first `program/module` and and matching `end program/module` (the latter is optional, but
+MOM6 follows this convention strictly).
+
+`implicit none` is a "quirk" of Fortran. It says that all variables' type must be declared. Otherwise, the compiler can make an
+"educated guess" as to what the type it is, which can result in unexpected behaviour.
+
+### Subroutines and declaring variables
+
+This is a trivial example as both the program or module does has no code. So let's create our first subroutine (Fortran comments
+are prefixed with `!`):
+
+```fortran
+module my_module
+
+  implicit none
+
+! says that subroutines/functions are declared after
+contains
+
+  ! this is declaring the subroutine's signature
+  subroutine sum_along_column(is, ie, js, je, nz, arr1, arr2)
+
+    ! each argument's type must be declared. Here we have:
+    ! * type (integer/real)
+    !   * real is equivalent to np.float32. However, MOM6 opts to control the precision at compile time.
+    ! * dimension aka shape. No dimenison means that variable is scalar. dimension(...) means the variable is an array.
+    !   * dimension(a:b) means that for the given index, only indices a to b are defined
+    ! * intent
+    !   * `in`: the variable will only be read
+    !   * `out`: the variable will be written to
+    !   * `inout`: not shown here, but means that the variable may be read and/or written to.
+    ! once an argument has been declared, it can also be used to declare others
+    integer,                           intent(in)  :: is, ie, js, je, nz
+    real, dimension(is:ie, js:je, nz), intent(in)  :: arr1
+    real, dimension(is:ie, js:je),     intent(out) :: arr2
+    ! all local variables must also be declared
+    integer :: i, j, k
+
+    do j=js,je
+      ! copies can be done using array slicing
+      arr2(:,j) = arr1(:,j,1) ! initialize the sum along columns
+      ! MOM6 keeps nested loops on a single line, dilineated by colons.
+      do k=2,nz ; do i=is,g%ie
+        arr2(i,j) = arr2(i,j) + arr1(i,j,k) ! do the sum along columns
+      enddo ; enddo
+    enddo
+
+  end subroutine sum_along_column
+
+end my_module
+```
+
+Like programs and modules, subroutines are bounded by `subroutine <name>` and `end subroutine <name>`. The subroutine's
+arguments follow the name, followed by the type declaration of the arguments and local variables. Unlike Python, the
+types of all variables must be declared and cannot change. In the above example, the variable attributes commonly used
+in MOM6 are shown (type, dimension, and intent). Variables can be declared in any order, but a common convention (that
+MOM6 follows) is to declare the arguments first, followed by local variables.
+
+### Array copies
+
+Like with Python NumPy, arrays' contents can be copied between each other. If the arrays are of the same shape, they can
+be copied with specifying array indices (`a = b`), or you may specify which slices to copy e.g. `a(1:10) = b(1:10)`, or
+`a(:, 1) = b(:)` etc. Noting that Fortran accesses array elements/slices using round brackets `()` instead of square
+brackets `[]` common in other languages. It is also worth noting that array assignments/copies are always deep copies
+(different from Python where `a = b` means something different from `a[:] = b[:]`).
+
+### Loops
+
+Loops are dilineated by `do variable=start,end,step` and `enddo` - which is like `for variable in range(start,end+1,step):`
+in Python. The main difference between fortran loop ranges and Python ranges is that the `end` is included in the range.
+
+You may have also noticed that the loop ordering is a bit strange. This is quite common in MOM6!
+
+### Derived types
+
+Derived types are similar to Python classes. The type has a name and attributes (or members). One of the key derived
+types in MOM6 is the `grid_type` which describe the grid extents (including the computational and halo extents). It
+also stores other grid information like lateral dimensions of the columns, masking etc. We can create a simple version
+of the grid type and use it in our subroutine:
+
+```fortran
+module my_module
+
+  implicit none
+
+  ! grid type to hold grid bounds
+  type grid_type
+    integer :: is, js   ! starting indices
+    integer :: ie, je   ! ending indices
+    integer :: nz       ! number of vertical layers
+  end type grid_type
+
+contains
+
+  ! we can replace our grid indices with a grid_type
+  subroutine sum_along_column(g, arr1, arr2)
+    ! We can still use the grid_type's members do define subsequent variables
+    ! members are accessed with the `%` qualifier
+    type(grid_type),                             intent(in)  :: g    ! g is an instance of grid_type
+    real, dimension(g%is:g%ie, g%js:g%je, g%nz), intent(in)  :: arr1
+    real, dimension(g%is:g%ie, g%js:g%je),       intent(out) :: arr2
+    integer :: i, j, k
+
+    do j=js,je
+      arr2(:,j) = arr1(:,j,1) ! initialize the sum along columns
+      do k=2,nz ; do i=is,g%ie
+        arr2(i,j) = arr2(i,j) + arr1(i,j,k) ! do the sum along columns
+      enddo ; enddo
+    enddo
+
+  end subroutine sum_along_column
+
+end my_module
+```
+
 ## How to work out how a diagnostic was calculated (general syntax + keywords to search for)
 ## Different initialisation options - thickness + tracers, topography (all these preset options)
 ## Coord config vs use_regridding (layer vs ale mode) - how to change your vertical coordinate or target coordinate and what it means
