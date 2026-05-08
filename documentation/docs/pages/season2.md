@@ -219,14 +219,14 @@ contains
       ! copies can be done using array slicing
       arr2(:,j) = arr1(:,j,1) ! initialize the sum along columns
       ! MOM6 keeps nested loops on a single line, dilineated by colons.
-      do k=2,nz ; do i=is,g%ie
+      do k=2,nz ; do i=is,ie
         arr2(i,j) = arr2(i,j) + arr1(i,j,k) ! do the sum along columns
       enddo ; enddo
     enddo
 
   end subroutine sum_along_column
 
-end my_module
+end module my_module
 ```
 
 Like programs and modules, subroutines are bounded by `subroutine <name>` and `end subroutine <name>`. The subroutine's
@@ -282,16 +282,16 @@ contains
     real, dimension(g%is:g%ie, g%js:g%je),       intent(out) :: arr2
     integer :: i, j, k
 
-    do j=js,je
+    do j=g%js,g%je
       arr2(:,j) = arr1(:,j,1) ! initialize the sum along columns
-      do k=2,nz ; do i=is,g%ie
+      do k=2,g%nz ; do i=g%is,g%ie
         arr2(i,j) = arr2(i,j) + arr1(i,j,k) ! do the sum along columns
       enddo ; enddo
     enddo
 
   end subroutine sum_along_column
 
-end my_module
+end module my_module
 ```
 
 Let's also introduce another pattern used in MOM6: the "control structure". Each module will have its own control
@@ -350,9 +350,9 @@ contains
     real, dimension(g%is:g%ie, g%js:g%je),       intent(out) :: arr2 !< output array
     integer :: i, j, k ! loop indices
 
-    do j=js,je
+    do j=g%js,g%je
       arr2(:,j) = arr1(:,j,1) ! initialize the sum along columns
-      do k=2,nz ; do i=is,g%ie
+      do k=2,g%nz ; do i=g%is,g%ie
         arr2(i,j) = arr2(i,j) + arr1(i,j,k) ! do the sum along columns
       enddo ; enddo
     enddo
@@ -366,16 +366,16 @@ contains
     real, dimension(g%is:g%ie, g%js:g%je),       intent(out) :: arr2 !< output array
     integer :: i, j, k ! loop indices
 
-    do j=js,je
+    do j=g%js,g%je
       arr2(:,j) = arr1(:,j,1) ! initialize the sum along columns
-      do k=2,nz ; do i=is,g%ie
+      do k=2,g%nz ; do i=g%is,g%ie
         arr2(i,j) = max(arr2(i,j), arr1(i,j,k)) ! do the max along columns
       enddo ; enddo
     enddo
 
-  end subroutine sum_along_column
+  end subroutine max_along_column
 
-end my_module
+end module my_module
 ```
 
 The module is much larger now - the control structure type has been added and two subroutines have also been
@@ -416,14 +416,14 @@ program my_program
   implicit none
   ! variable declaration
   type(grid_type) :: g
-  type(control_structure) :: cs
+  type(control_structure_type) :: cs
   ! use allocatable arrays for dynamic array sizes in the program
   real, allocatable :: input_array(:, :, :), output_array(:, :)
 
   ! derived type instances don't have to be constructed (the construction is implied in the declaration)
   ! but they can be initialized with a default type constructor, or simply setting the members.
-  g = grid(is=1, js=2, ie=3, je=4, nz=5)
-  cs%initialize = .true.
+  g = grid_type(is=1, js=2, ie=3, je=4, nz=5)
+  cs%initialized = .true.
   cs%which_op = 1
 
   allocate( &
