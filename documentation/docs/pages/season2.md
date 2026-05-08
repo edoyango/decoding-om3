@@ -235,6 +235,8 @@ types of all variables must be declared and cannot change. In the above example,
 in MOM6 are shown (type, dimension, and intent). Variables can be declared in any order, but a common convention (that
 MOM6 follows) is to declare the arguments first, followed by local variables.
 
+Note that subroutines are invoked with `call <subroutine>(...)`
+
 ### Array copies
 
 Like with Python NumPy, arrays' contents can be copied between each other. If the arrays are of the same shape, they can
@@ -262,19 +264,19 @@ module my_module
 
   implicit none
 
-  ! grid type to hold grid bounds
-  type grid_type
-    integer :: is, js   ! starting indices
-    integer :: ie, je   ! ending indices
-    integer :: nz       ! number of vertical layers
-  end type grid_type
+  ! grid type to hold grid bounds                     Python analogue:
+  type grid_type                                      ! class gridType:
+    integer :: is, js   ! starting indices            !     def __init__(self, is, js, ie, je, nz):
+    integer :: ie, je   ! ending indices              !         self.is = is ; self.js = js
+    integer :: nz       ! number of vertical layers   !         self.ie = ie ; self.je = je
+  end type grid_type                                  !         self.nz = nz
 
 contains
 
   ! we can replace our grid indices with a grid_type
   subroutine sum_along_column(g, arr1, arr2)
     ! We can still use the grid_type's members do define subsequent variables
-    ! members are accessed with the `%` qualifier
+    ! members are accessed with the % qualifier
     type(grid_type),                             intent(in)  :: g    ! g is an instance of grid_type
     real, dimension(g%is:g%ie, g%js:g%je, g%nz), intent(in)  :: arr1
     real, dimension(g%is:g%ie, g%js:g%je),       intent(out) :: arr2
@@ -291,6 +293,172 @@ contains
 
 end my_module
 ```
+
+Let's also introduce another pattern used in MOM6: the "control structure". Each module will have its own control
+structure that mostly stores information to control MOM6' behaviour e.g. which algorithm to use or whether a certain
+physics is turned on or not. In our simple example, the control structure will simply control whether to do a sum
+or max along columns.
+
+```fortran
+module my_module
+
+  implicit none
+
+  private ! this says that by default, contents of this module aren't accessible.
+
+  !< grid type to hold grid bounds
+  type grid_type
+    integer :: is, js   !< starting indices
+    integer :: ie, je   !< ending indices
+    integer :: nz       !< number of vertical layers
+  end type grid_type
+
+  !< control structure
+  type control_structure_type
+    logical :: initialized = .false. !< whether the control structure is initialized - defaults to .false.
+    integer :: which_op = 1          !< which operation to do - default is 1 (sum)
+  end type control_structure_type
+
+  ! Explicitly say which types/subroutines can be used - do_sum/max_along_column cannot be directly used
+  public :: grid_type, control_structure_type, do_something_along_column
+
+contains
+
+  !< this subroutine either does a max or sum along columns
+  subroutine do_something_along_column(cs, g, arr1, arr2)
+    type(control_structure_type),                intent(in)  :: cs   !< control structure
+    type(grid_type),                             intent(in)  :: g    !< grid type
+    real, dimension(g%is:g%ie, g%js:g%je, g%nz), intent(in)  :: arr1 !< input array
+    real, dimension(g%is:g%ie, g%js:g%je),       intent(out) :: arr2 !< output array
+
+    if (.not.CS%initialized) error stop "Control structure not initialized!"
+
+    if (CS%which_op == 1) then
+      call sum_along_column(g, arr1, arr2)
+    elseif (CS%which_op == 2) then
+      call max_along_column(g, arr1, arr2)
+    else
+      error stop "Invalid operation provided! must be either 1 or 2"
+    endif
+
+  end subroutine do_something_along_column
+
+  !< performs a sum reduction along columns
+  subroutine sum_along_column(g, arr1, arr2)
+    type(grid_type),                             intent(in)  :: g    !< grid type
+    real, dimension(g%is:g%ie, g%js:g%je, g%nz), intent(in)  :: arr1 !< input array
+    real, dimension(g%is:g%ie, g%js:g%je),       intent(out) :: arr2 !< output array
+    integer :: i, j, k ! loop indices
+
+    do j=js,je
+      arr2(:,j) = arr1(:,j,1) ! initialize the sum along columns
+      do k=2,nz ; do i=is,g%ie
+        arr2(i,j) = arr2(i,j) + arr1(i,j,k) ! do the sum along columns
+      enddo ; enddo
+    enddo
+
+  end subroutine sum_along_column
+
+  !< performs a max reduction along columns
+  subroutine max_along_column(g, arr1, arr2)
+    type(grid_type),                             intent(in)  :: g    !< grid type
+    real, dimension(g%is:g%ie, g%js:g%je, g%nz), intent(in)  :: arr1 !< input array
+    real, dimension(g%is:g%ie, g%js:g%je),       intent(out) :: arr2 !< output array
+    integer :: i, j, k ! loop indices
+
+    do j=js,je
+      arr2(:,j) = arr1(:,j,1) ! initialize the sum along columns
+      do k=2,nz ; do i=is,g%ie
+        arr2(i,j) = max(arr2(i,j), arr1(i,j,k)) ! do the max along columns
+      enddo ; enddo
+    enddo
+
+  end subroutine sum_along_column
+
+end my_module
+```
+
+The module is much larger now - the control structure type has been added and two subroutines have also been
+added. `max_along_column` is almost identical to `sum_along_column` except that it does a `max` operation
+instead of `+`. 
+
+### If statements
+
+In the module, we've also added a 3-branch if statement. If statements look quite similar to Python's except
+that the evaluation must be put it into brackets and is followe dy `then`: i.e. `if (statement) then`.
+Otherwise the semantics are identical.
+
+### Module public and private
+
+To hide details, MOM6 likes to leverage "public" and "private" statements in modules. MOM6 modules will
+declare everything as `private` by default (by having an unqualified `private` clause), and then explicitly
+list the objects that should be accessible outside of the module with `public :: list, of, objects, and, procedures`.
+Private things are visible to other things within the module, but not outside.
+
+### Documenting comments
+
+MOM6 uses Doxygen comments that automatically generate documentation for the code. These type of comments
+are sentineled with !< (as opposed to only !). Procedures (functions and subroutines), types and members, and
+arguments must be documented.
+
+### Using modules
+
+Let's finish our program and use the module code! The program will be very simple - uses hardcoded values to
+initialize everything.
+
+```fortran
+program my_program
+  ! specify which things we want from the module
+  ! Python analogue: from my_module import grid_type, control_structure_type, do_something_along_column
+  ! note that because of the privacy in the module, if we tried to use sum_along_column, the program
+  ! would fail to compile.
+  use my_module, only: grid_type, control_structure_type, do_something_along_column
+  implicit none
+  ! variable declaration
+  type(grid_type) :: g
+  type(control_structure) :: cs
+  ! use allocatable arrays for dynamic array sizes in the program
+  real, allocatable :: input_array(:, :, :), output_array(:, :)
+
+  ! derived type instances don't have to be constructed (the construction is implied in the declaration)
+  ! but they can be initialized with a default type constructor, or simply setting the members.
+  g = grid(is=1, js=2, ie=3, je=4, nz=5)
+  cs%initialize = .true.
+  cs%which_op = 1
+
+  allocate( &
+    input_array(g%is:g%ie, g%js:g%je, g%nz), &
+    output_array(g%is:g%ie, g%is:g%ie) &
+  )
+
+  input_array = 1.0
+
+  call do_something_along_column(cs, g, input_array, output_array)
+
+  ! print the sum of the array to the terminal
+  write(*, *) sum(output_array)
+
+end program my_program
+```
+
+A program itself looks quite similar the subroutines above, except there aren't any arguments. Near the top
+we `use` the module and select which things we want. This convention isn't mandatory, but is closely followed
+by MOM6.
+
+### Allocatable arrays
+
+Unlike subroutines, programs cannot get array sizes by simply passing them in. So, often arrays are made
+given the "allocatable" attribute, which lets the program "allocate" the array based on some user input or
+similar. Here, we allocate the arrays' based on hardcoded values, but that could be changed to use CLI
+arguments or something.
+
+### Compiling and running the example
+
+To compile the program, you can put the above module and program into the same file, say `example.f90`, and
+compile it with `gfortran example.f90 -o example.x`. You can then execute it with `./example.x`. You should
+get `42` with many zeros printed!
+
+MOM6 is a much more complex codebase with many more dependencies and consequently more complex build system.
 
 ## How to work out how a diagnostic was calculated (general syntax + keywords to search for)
 ## Different initialisation options - thickness + tracers, topography (all these preset options)
