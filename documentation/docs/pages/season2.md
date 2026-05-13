@@ -144,8 +144,13 @@ exercised in MOM6 have a Python equivalent. Here, we won't be looking at MOM6 co
 <details><summary>Python equivalent of the example program to be built</summary>
 
 ```python
-import numpy as np
+"""
+Python code that emulates the example Fortran program.
+It uses Python functions and classes to represent the equivalent Fortran
+subroutines and derived types.
+"""
 
+import numpy as np
 
 class Grid:
     def __init__(self, is_: int, js: int, ie: int, je: int, nz: int):
@@ -155,12 +160,10 @@ class Grid:
         self.je = je
         self.nz = nz
 
-
 class ControlStructure:
     def __init__(self, initialized: bool = False, which_op: int = 1):
         self.initialized = initialized
         self.which_op = which_op
-
 
 def do_something_along_column(cs: ControlStructure, g: Grid, arr1: np.ndarray) -> np.ndarray:
     if not cs.initialized:
@@ -172,7 +175,6 @@ def do_something_along_column(cs: ControlStructure, g: Grid, arr1: np.ndarray) -
         return _max_along_column(g, arr1)
     raise ValueError("Invalid operation provided! must be either 1 or 2")
 
-
 def _sum_along_column(g: Grid, arr1: np.ndarray) -> np.ndarray:
     arr2 = arr1[:, :, 0].copy()
     for j in range(g.je - g.js + 1):
@@ -180,7 +182,6 @@ def _sum_along_column(g: Grid, arr1: np.ndarray) -> np.ndarray:
             for i in range(g.ie - g.is_ + 1):
                 arr2[i, j] += arr1[i, j, k]
     return arr2
-
 
 def _max_along_column(g: Grid, arr1: np.ndarray) -> np.ndarray:
     arr2 = arr1[:, :, 0].copy()
@@ -193,7 +194,6 @@ def _max_along_column(g: Grid, arr1: np.ndarray) -> np.ndarray:
 import numpy as np
 
 from my_module import ControlStructure, Grid, do_something_along_column
-
 
 if __name__ == "__main__":
     g = Grid(is_=1, js=2, ie=3, je=4, nz=5)
