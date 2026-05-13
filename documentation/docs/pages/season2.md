@@ -130,13 +130,16 @@ Presenter: @edoyango (Edward Yang).
 
 Date: 14/05/2026
 
+!!! note
+
+    Today we'll be building a simple Fortran example program that uses some of the
+concepts that MOM6 is built with. Next week, we'll apply these ideas to some real MOM6 code. Our program today, takes a 3d array (first two indices represent the lateral domain, and the last represents the columns), and performs either a sum or max operation along the column, reducing the result to a 2d array that
+represents the lateral domain only. To understand today's end goal, the final version of the code is given in Python below.
+
 Contributing to [MOM6](https://github.com/acCESS-nri/mom6) can be extra daunting if you're not used to programming in Fortran. These
 notes aim to introduce Fortran to someone who might already be familiar with Python. And thankfully, most of the Fortran features
 exercised in MOM6 have a Python equivalent. Here, we won't be looking at MOM6 code directly, because the code itself is quite long
--- even if the language features used aren't too complicated. Instead, we'll build a simple example program that uses some of the
-concepts that MOM6 is built with. The program takes a 3d array (first two indices represent the lateral domain, and the last
-represents the columns), and performs either a sum or max operation along the column, reducing the result to a 2d array that
-represents the lateral domain only.
+-- even if the language features used aren't too complicated. 
 
 <details><summary>Python equivalent of the example program to be built</summary>
 
@@ -234,8 +237,12 @@ optional, but it's a requirement to include the name in modules in).
 
 ### Subroutines and declaring variables
 
-Programs can have runnable code. But as your codebase gets larger, it's likely that you will 1. want to organise the code in some
-way to make it easier to understand and maintain (e.g. group code related to certain physics together), and 2. store code that is
+Programs can have runnable code. But as your codebase gets larger, it's likely that you will:
+
+ 1. want to organise the code in some
+way to make it easier to understand and maintain (e.g. group code related to certain physics together), and 
+ 
+2. store code that is
 reused in multiple places. Subroutines help facilitate this. Subroutines are similar to Python functions except that subroutines
 don't return anything, and instead, they modify its arguments instead. Fortran does have functions also, but are used less
 frequently in MOM6.
